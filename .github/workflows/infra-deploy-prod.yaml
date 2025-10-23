@@ -1,167 +1,167 @@
-# name: Deploy Infrastructure - Prod
+name: Deploy Infrastructure - Prod
 
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       confirm_apply:
-#         description: 'Type "APPLY" to confirm production infrastructure deployment'
-#         required: true
-#         type: string
-#       auto_approve:
-#         description: 'Skip manual approval (use with caution)'
-#         required: false
-#         type: boolean
-#         default: false
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_apply:
+        description: 'Type "APPLY" to confirm production infrastructure deployment'
+        required: true
+        type: string
+      auto_approve:
+        description: 'Skip manual approval (use with caution)'
+        required: false
+        type: boolean
+        default: false
 
-# env:
-#   terraform_version: 1.5.7
-#   infra_path: terraform
+env:
+  terraform_version: 1.5.7
+  infra_path: terraform
 
-# jobs:
-#   validate-input:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Validate deployment confirmation
-#         run: |
-#           if [ "${{ github.event.inputs.confirm_apply }}" != "APPLY" ]; then
-#             echo "❌ Deployment cancelled - confirmation not provided"
-#             echo "Please type 'APPLY' exactly to confirm production infrastructure deployment"
-#             exit 1
-#           fi
-#           echo "✅ Deployment confirmed"
+jobs:
+  validate-input:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate deployment confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_apply }}" != "APPLY" ]; then
+            echo "❌ Deployment cancelled - confirmation not provided"
+            echo "Please type 'APPLY' exactly to confirm production infrastructure deployment"
+            exit 1
+          fi
+          echo "✅ Deployment confirmed"
 
-#   plan:
-#     needs: [validate-input]
-#     runs-on: ubuntu-latest
-#     outputs:
-#       plan_status: ${{ steps.plan.outcome }}
+  plan:
+    needs: [validate-input]
+    runs-on: ubuntu-latest
+    outputs:
+      plan_status: ${{ steps.plan.outcome }}
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform Format Check
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform fmt -check
-#         continue-on-error: true
+      - name: Terraform Format Check
+        run: |
+          cd ${{ env.infra_path }}
+          terraform fmt -check
+        continue-on-error: true
 
-#       - name: Terraform Init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/prod.tfbackend
+      - name: Terraform Init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/prod.tfbackend
 
-#       - name: Terraform Validate
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform validate
+      - name: Terraform Validate
+        run: |
+          cd ${{ env.infra_path }}
+          terraform validate
 
-#       - name: Terraform Plan
-#         id: plan
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform plan -var-file=vars/prod.tfvars -out=tfplan
-#           terraform show -no-color tfplan > plan_output.txt
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd ${{ env.infra_path }}
+          terraform plan -var-file=vars/prod.tfvars -out=tfplan
+          terraform show -no-color tfplan > plan_output.txt
 
-#       - name: Upload plan artifact
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: terraform-plan
-#           path: ${{ env.infra_path }}/tfplan
-#           retention-days: 5
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.infra_path }}/tfplan
+          retention-days: 5
 
-#       - name: Display plan summary
-#         run: |
-#           cd ${{ env.infra_path }}
-#           echo "### 📋 Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
-#           head -n 100 plan_output.txt >> $GITHUB_STEP_SUMMARY
-#           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      - name: Display plan summary
+        run: |
+          cd ${{ env.infra_path }}
+          echo "### 📋 Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
+          head -n 100 plan_output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-#   approval:
-#     needs: [plan]
-#     runs-on: ubuntu-latest
-#     environment: production
-#     if: ${{ github.event.inputs.auto_approve != 'true' }}
+  approval:
+    needs: [plan]
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ github.event.inputs.auto_approve != 'true' }}
 
-#     steps:
-#       - name: Manual approval checkpoint
-#         run: |
-#           echo "⏸️  Waiting for manual approval in GitHub environment settings..."
-#           echo "Review the plan output from the previous job before approving."
+    steps:
+      - name: Manual approval checkpoint
+        run: |
+          echo "⏸️  Waiting for manual approval in GitHub environment settings..."
+          echo "Review the plan output from the previous job before approving."
 
-#   apply:
-#     needs: [plan, approval]
-#     if: |
-#       always() &&
-#       needs.plan.result == 'success' &&
-#       (needs.approval.result == 'success' || needs.approval.result == 'skipped')
-#     runs-on: ubuntu-latest
-#     environment: production
+  apply:
+    needs: [plan, approval]
+    if: |
+      always() &&
+      needs.plan.result == 'success' &&
+      (needs.approval.result == 'success' || needs.approval.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: production
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform Init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/prod.tfbackend
+      - name: Terraform Init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/prod.tfbackend
 
-#       - name: Download plan artifact
-#         uses: actions/download-artifact@v4
-#         with:
-#           name: terraform-plan
-#           path: ${{ env.infra_path }}
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.infra_path }}
 
-#       - name: Terraform Apply
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform apply tfplan
+      - name: Terraform Apply
+        run: |
+          cd ${{ env.infra_path }}
+          terraform apply tfplan
 
-#       - name: Get Terraform Outputs
-#         id: outputs
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform output -json > outputs.json
-#           cat outputs.json
+      - name: Get Terraform Outputs
+        id: outputs
+        run: |
+          cd ${{ env.infra_path }}
+          terraform output -json > outputs.json
+          cat outputs.json
 
-#       - name: Create deployment summary
-#         run: |
-#           echo "### 🚀 Production Infrastructure Deployment" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "✅ Infrastructure deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
-#           echo "1. Verify the infrastructure in AWS Console" >> $GITHUB_STEP_SUMMARY
-#           echo "2. Deploy the application using the 'Build and Deploy Application - Prod' workflow" >> $GITHUB_STEP_SUMMARY
-#           echo "3. Run smoke tests to verify the deployment" >> $GITHUB_STEP_SUMMARY
+      - name: Create deployment summary
+        run: |
+          echo "### 🚀 Production Infrastructure Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Infrastructure deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify the infrastructure in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "2. Deploy the application using the 'Build and Deploy Application - Prod' workflow" >> $GITHUB_STEP_SUMMARY
+          echo "3. Run smoke tests to verify the deployment" >> $GITHUB_STEP_SUMMARY

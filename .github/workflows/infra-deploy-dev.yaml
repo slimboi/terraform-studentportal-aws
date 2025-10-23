@@ -1,44 +1,44 @@
-# name: Deploy Infrastructure - Dev
+name: Deploy Infrastructure - Dev
 
-# on:
-#   push:
-#     branches:
-#       - main
-#     paths:
-#       - 'terraform/**'
-#   workflow_dispatch:
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
 
-# env:
-#   terraform_version: 1.5.7
-#   infra_path: terraform
+env:
+  terraform_version: 1.5.7
+  infra_path: terraform
 
-# jobs:
-#   terraform-dev:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: checkout
-#         uses: actions/checkout@v4
+jobs:
+  terraform-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
 
-#       - name: Terraform install
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Terraform install
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform init
-#         # run: terraform init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/dev.tfbackend
+      - name: Terraform init
+        # run: terraform init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/dev.tfbackend
 
-#       - name: Terraform Apply
-#         # run: terraform plan
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform apply -var-file=vars/dev.tfvars --auto-approve
+      - name: Terraform Apply
+        # run: terraform plan
+        run: |
+          cd ${{ env.infra_path }}
+          terraform apply -var-file=vars/dev.tfvars --auto-approve

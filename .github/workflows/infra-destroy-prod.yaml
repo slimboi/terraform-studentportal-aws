@@ -1,248 +1,248 @@
-# name: Destroy Infrastructure - Prod
+name: Destroy Infrastructure - Prod
 
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       confirm_destroy:
-#         description: 'Type the environment name "production" to confirm destruction'
-#         required: true
-#         type: string
-#       backup_confirmation:
-#         description: 'Have you created backups? Type "YES" to confirm'
-#         required: true
-#         type: string
-#       reason:
-#         description: 'Reason for destroying production infrastructure'
-#         required: true
-#         type: string
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: 'Type the environment name "production" to confirm destruction'
+        required: true
+        type: string
+      backup_confirmation:
+        description: 'Have you created backups? Type "YES" to confirm'
+        required: true
+        type: string
+      reason:
+        description: 'Reason for destroying production infrastructure'
+        required: true
+        type: string
 
-# env:
-#   terraform_version: 1.5.7
-#   infra_path: terraform
+env:
+  terraform_version: 1.5.7
+  infra_path: terraform
 
-# jobs:
-#   validate-input:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Validate environment name
-#         run: |
-#           if [ "${{ github.event.inputs.confirm_destroy }}" != "production" ]; then
-#             echo "❌ Destruction cancelled - incorrect environment name"
-#             echo "Please type 'production' exactly to confirm"
-#             exit 1
-#           fi
-#           echo "✅ Environment name confirmed"
+jobs:
+  validate-input:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate environment name
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "production" ]; then
+            echo "❌ Destruction cancelled - incorrect environment name"
+            echo "Please type 'production' exactly to confirm"
+            exit 1
+          fi
+          echo "✅ Environment name confirmed"
 
-#       - name: Validate backup confirmation
-#         run: |
-#           if [ "${{ github.event.inputs.backup_confirmation }}" != "YES" ]; then
-#             echo "❌ Destruction cancelled - backup not confirmed"
-#             echo "Please confirm you have created backups by typing 'YES'"
-#             exit 1
-#           fi
-#           echo "✅ Backup confirmed"
+      - name: Validate backup confirmation
+        run: |
+          if [ "${{ github.event.inputs.backup_confirmation }}" != "YES" ]; then
+            echo "❌ Destruction cancelled - backup not confirmed"
+            echo "Please confirm you have created backups by typing 'YES'"
+            exit 1
+          fi
+          echo "✅ Backup confirmed"
 
-#       - name: Validate reason provided
-#         run: |
-#           if [ -z "${{ github.event.inputs.reason }}" ]; then
-#             echo "❌ Destruction cancelled - reason not provided"
-#             exit 1
-#           fi
-#           echo "✅ Reason: ${{ github.event.inputs.reason }}"
+      - name: Validate reason provided
+        run: |
+          if [ -z "${{ github.event.inputs.reason }}" ]; then
+            echo "❌ Destruction cancelled - reason not provided"
+            exit 1
+          fi
+          echo "✅ Reason: ${{ github.event.inputs.reason }}"
 
-#       - name: Display warning
-#         run: |
-#           echo "⚠️  WARNING: This will destroy ALL production infrastructure!"
-#           echo "Reason: ${{ github.event.inputs.reason }}"
-#           echo "Initiated by: ${{ github.actor }}"
+      - name: Display warning
+        run: |
+          echo "⚠️  WARNING: This will destroy ALL production infrastructure!"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+          echo "Initiated by: ${{ github.actor }}"
 
-#   pre-destroy-snapshot:
-#     needs: [validate-input]
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+  pre-destroy-snapshot:
+    needs: [validate-input]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform Init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/prod.tfbackend
+      - name: Terraform Init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/prod.tfbackend
 
-#       - name: Create state backup
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform state pull > terraform-state-backup-$(date +%Y%m%d-%H%M%S).json
-#           echo "✅ State backup created"
+      - name: Create state backup
+        run: |
+          cd ${{ env.infra_path }}
+          terraform state pull > terraform-state-backup-$(date +%Y%m%d-%H%M%S).json
+          echo "✅ State backup created"
 
-#       - name: Upload state backup
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: terraform-state-backup
-#           path: ${{ env.infra_path }}/terraform-state-backup-*.json
-#           retention-days: 90
+      - name: Upload state backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-state-backup
+          path: ${{ env.infra_path }}/terraform-state-backup-*.json
+          retention-days: 90
 
-#       - name: Check RDS instances
-#         continue-on-error: true
-#         run: |
-#           echo "📊 Checking for RDS instances..."
-#           aws rds describe-db-instances \
-#             --query 'DBInstances[?contains(DBInstanceIdentifier, `prod-studentportal`)].DBInstanceIdentifier' \
-#             --output table || echo "No RDS instances found"
+      - name: Check RDS instances
+        continue-on-error: true
+        run: |
+          echo "📊 Checking for RDS instances..."
+          aws rds describe-db-instances \
+            --query 'DBInstances[?contains(DBInstanceIdentifier, `prod-studentportal`)].DBInstanceIdentifier' \
+            --output table || echo "No RDS instances found"
 
-#       - name: Recommend manual snapshots
-#         run: |
-#           echo "### ⚠️  Pre-Destruction Checklist" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "Before proceeding with destruction, ensure you have:" >> $GITHUB_STEP_SUMMARY
-#           echo "- ✅ Created RDS snapshots" >> $GITHUB_STEP_SUMMARY
-#           echo "- ✅ Backed up important data" >> $GITHUB_STEP_SUMMARY
-#           echo "- ✅ Exported any necessary configurations" >> $GITHUB_STEP_SUMMARY
-#           echo "- ✅ Notified stakeholders" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "**Destruction Reason:** ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+      - name: Recommend manual snapshots
+        run: |
+          echo "### ⚠️  Pre-Destruction Checklist" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Before proceeding with destruction, ensure you have:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Created RDS snapshots" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backed up important data" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Exported any necessary configurations" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Notified stakeholders" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Destruction Reason:** ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
 
-#   destroy-plan:
-#     needs: [pre-destroy-snapshot]
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+  destroy-plan:
+    needs: [pre-destroy-snapshot]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform Init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/prod.tfbackend
+      - name: Terraform Init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/prod.tfbackend
 
-#       - name: Terraform Destroy Plan
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform plan -destroy -var-file=vars/prod.tfvars -out=destroy-plan
-#           terraform show -no-color destroy-plan > destroy-plan-output.txt
+      - name: Terraform Destroy Plan
+        run: |
+          cd ${{ env.infra_path }}
+          terraform plan -destroy -var-file=vars/prod.tfvars -out=destroy-plan
+          terraform show -no-color destroy-plan > destroy-plan-output.txt
 
-#       - name: Upload destroy plan
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: terraform-destroy-plan
-#           path: ${{ env.infra_path }}/destroy-plan
-#           retention-days: 5
+      - name: Upload destroy plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-destroy-plan
+          path: ${{ env.infra_path }}/destroy-plan
+          retention-days: 5
 
-#       - name: Display destroy plan summary
-#         run: |
-#           cd ${{ env.infra_path }}
-#           echo "### 🗑️  Terraform Destroy Plan" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
-#           head -n 100 destroy-plan-output.txt >> $GITHUB_STEP_SUMMARY
-#           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+      - name: Display destroy plan summary
+        run: |
+          cd ${{ env.infra_path }}
+          echo "### 🗑️  Terraform Destroy Plan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`terraform" >> $GITHUB_STEP_SUMMARY
+          head -n 100 destroy-plan-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-#   approval:
-#     needs: [destroy-plan]
-#     runs-on: ubuntu-latest
-#     environment: production-destroy
+  approval:
+    needs: [destroy-plan]
+    runs-on: ubuntu-latest
+    environment: production-destroy
 
-#     steps:
-#       - name: Final approval checkpoint
-#         run: |
-#           echo "⏸️  Final approval required before destruction"
-#           echo "This is the last chance to cancel the destruction of production infrastructure"
-#           echo "Reason: ${{ github.event.inputs.reason }}"
+    steps:
+      - name: Final approval checkpoint
+        run: |
+          echo "⏸️  Final approval required before destruction"
+          echo "This is the last chance to cancel the destruction of production infrastructure"
+          echo "Reason: ${{ github.event.inputs.reason }}"
 
-#   destroy:
-#     needs: [approval]
-#     runs-on: ubuntu-latest
-#     environment: production-destroy
+  destroy:
+    needs: [approval]
+    runs-on: ubuntu-latest
+    environment: production-destroy
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: ${{ env.terraform_version }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.terraform_version }}
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v5
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ap-southeast-2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
 
-#       - name: Terraform Init
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform init -backend-config=vars/prod.tfbackend
+      - name: Terraform Init
+        run: |
+          cd ${{ env.infra_path }}
+          terraform init -backend-config=vars/prod.tfbackend
 
-#       - name: Download destroy plan
-#         uses: actions/download-artifact@v4
-#         with:
-#           name: terraform-destroy-plan
-#           path: ${{ env.infra_path }}
+      - name: Download destroy plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-destroy-plan
+          path: ${{ env.infra_path }}
 
-#       - name: Execute Terraform Destroy
-#         run: |
-#           cd ${{ env.infra_path }}
-#           terraform apply destroy-plan
+      - name: Execute Terraform Destroy
+        run: |
+          cd ${{ env.infra_path }}
+          terraform apply destroy-plan
 
-#       - name: Verify destruction
-#         run: |
-#           echo "Verifying resource destruction..."
-#           aws ecs list-clusters --query 'clusterArns[?contains(@, `prod-studentportal`)]' || echo "ECS clusters destroyed"
+      - name: Verify destruction
+        run: |
+          echo "Verifying resource destruction..."
+          aws ecs list-clusters --query 'clusterArns[?contains(@, `prod-studentportal`)]' || echo "ECS clusters destroyed"
 
-#       - name: Create destruction summary
-#         run: |
-#           echo "### 💥 Production Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Destroyed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-#           echo "- **Reason:** ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "⚠️  Production infrastructure has been destroyed" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "**Backups created:**" >> $GITHUB_STEP_SUMMARY
-#           echo "- Terraform state backup (available in workflow artifacts for 90 days)" >> $GITHUB_STEP_SUMMARY
-#           echo "" >> $GITHUB_STEP_SUMMARY
-#           echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
-#           echo "1. Verify all resources are destroyed in AWS Console" >> $GITHUB_STEP_SUMMARY
-#           echo "2. Check for any orphaned resources" >> $GITHUB_STEP_SUMMARY
-#           echo "3. Review AWS billing to ensure no unexpected charges" >> $GITHUB_STEP_SUMMARY
+      - name: Create destruction summary
+        run: |
+          echo "### 💥 Production Infrastructure Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Destroyed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Reason:** ${{ github.event.inputs.reason }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️  Production infrastructure has been destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Backups created:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Terraform state backup (available in workflow artifacts for 90 days)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify all resources are destroyed in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check for any orphaned resources" >> $GITHUB_STEP_SUMMARY
+          echo "3. Review AWS billing to ensure no unexpected charges" >> $GITHUB_STEP_SUMMARY
 
-#   notify:
-#     needs: [destroy]
-#     if: always()
-#     runs-on: ubuntu-latest
+  notify:
+    needs: [destroy]
+    if: always()
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - name: Send notification
-#         run: |
-#           echo "📧 Sending destruction notification..."
-#           echo "Production infrastructure destruction completed"
-#           echo "Initiator: ${{ github.actor }}"
-#           echo "Reason: ${{ github.event.inputs.reason }}"
-#           echo "Status: ${{ needs.destroy.result }}"
-#           # Add Slack/Email notification here if needed
+    steps:
+      - name: Send notification
+        run: |
+          echo "📧 Sending destruction notification..."
+          echo "Production infrastructure destruction completed"
+          echo "Initiator: ${{ github.actor }}"
+          echo "Reason: ${{ github.event.inputs.reason }}"
+          echo "Status: ${{ needs.destroy.result }}"
+          # Add Slack/Email notification here if needed
