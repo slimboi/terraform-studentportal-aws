@@ -1,0 +1,4 @@
+bucket  = "myapp-terraform-state-1285"
+key     = "studentportal/prod/terraform.tfstate"
+region  = "ap-southeast-2"
+encrypt = true
