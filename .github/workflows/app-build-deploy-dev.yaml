@@ -1,9 +1,11 @@
 name: Build and Deploy Application - Dev
 
 on:
-  # push:
-  #   branches:
-  #     - main
+  push:
+    branches:
+      - main
+    paths:
+      - 'application/**'  # Only trigger on app changes
   workflow_dispatch:
 
 env:
@@ -14,38 +16,44 @@ env:
   app_container: "studentportal"
   aws_account: "475325513391"
   aws_region: "ap-southeast-2"
-  image_tag: ${{ github.sha }}
 
 jobs:
   build:
     runs-on: ubuntu-latest      
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.image_tag }}
 
     steps:
-      - name: checkout out code
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set-tag
+        run: echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-southeast-2
+          aws-region: ${{ env.aws_region }}
 
-      - name: ecr login
-        run: aws ecr get-login-password --region ${{ env.aws_region }} | docker login --username AWS --password-stdin ${{ env.aws_account }}.dkr.ecr.${{ env.aws_region }}.amazonaws.com
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: docker build 
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
         run: |
           cd application
-          docker build -t ecsapp .
-          docker tag ecsapp ${{ env.ecr_repo }}:${{ env.image_tag }}
-
-      - name: docker push
-        run: docker push ${{ env.ecr_repo }}:${{ env.image_tag }}
+          docker build -t ${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }} .
+          docker push ${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }}
+          echo "image=${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }}" >> $GITHUB_OUTPUT
 
   deploy:
     needs: [build]
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'  # Only deploy from main branch
 
     steps:
       - name: Configure AWS Credentials
@@ -53,28 +61,26 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-southeast-2
+          aws-region: ${{ env.aws_region }}
           
-      - name: Download task definition for web
+      - name: Download task definition
         run: |
-          aws ecs describe-task-definition --task-definition ${{ env.ecs_task_def }} \
-          --query taskDefinition > task-definition.json
-          ls -l task-definition.json
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ecs_task_def }} \
+            --query taskDefinition > task-definition.json
 
-      
-      - name: Fill in the new image ID for web in the ECS task def
-        id: task-def-web
+      - name: Fill in the new image ID in the ECS task definition
+        id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
           container-name: ${{ env.app_container }}
-          image: ${{ env.ecr_repo }}:${{ env.image_tag }}
+          image: ${{ env.ecr_repo }}:${{ needs.build.outputs.image_tag }}
 
-      - name: Deploy app on Amazon ECS task definition
-        if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
-          task-definition: ${{ steps.task-def-web.outputs.task-definition }}
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.ecs_service }}
           cluster: ${{ env.ecs_cluster }}
           wait-for-service-stability: true
