@@ -1,138 +1,138 @@
-name: Build and Deploy Application - Prod
+# name: Build and Deploy Application - Prod
 
-on:
-  workflow_dispatch:
-    inputs:
-      version_tag:
-        description: 'Version tag for the Docker image (e.g., v1.0.0)'
-        required: true
-        type: string
-      confirm_deploy:
-        description: 'Type "DEPLOY" to confirm production deployment'
-        required: true
-        type: string
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       version_tag:
+#         description: 'Version tag for the Docker image (e.g., v1.0.0)'
+#         required: true
+#         type: string
+#       confirm_deploy:
+#         description: 'Type "DEPLOY" to confirm production deployment'
+#         required: true
+#         type: string
 
-env:
-  ecr_repo: "475325513391.dkr.ecr.ap-southeast-2.amazonaws.com/prod-studentportal"
-  ecs_task_def: "prod-studentportal-task-def"
-  ecs_cluster: "prod-studentportal-cluster"
-  ecs_service: "prod-studentportal-service"
-  app_container: "studentportal"
-  aws_account: "475325513391"
-  aws_region: "ap-southeast-2"
+# env:
+#   ecr_repo: "475325513391.dkr.ecr.ap-southeast-2.amazonaws.com/prod-studentportal"
+#   ecs_task_def: "prod-studentportal-task-def"
+#   ecs_cluster: "prod-studentportal-cluster"
+#   ecs_service: "prod-studentportal-service"
+#   app_container: "studentportal"
+#   aws_account: "475325513391"
+#   aws_region: "ap-southeast-2"
 
-jobs:
-  validate-input:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate deployment confirmation
-        run: |
-          if [ "${{ github.event.inputs.confirm_deploy }}" != "DEPLOY" ]; then
-            echo "❌ Deployment cancelled - confirmation not provided"
-            echo "Please type 'DEPLOY' exactly to confirm production deployment"
-            exit 1
-          fi
-          echo "✅ Deployment confirmed"
+# jobs:
+#   validate-input:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Validate deployment confirmation
+#         run: |
+#           if [ "${{ github.event.inputs.confirm_deploy }}" != "DEPLOY" ]; then
+#             echo "❌ Deployment cancelled - confirmation not provided"
+#             echo "Please type 'DEPLOY' exactly to confirm production deployment"
+#             exit 1
+#           fi
+#           echo "✅ Deployment confirmed"
 
-      - name: Validate version tag format
-        run: |
-          if [[ ! "${{ github.event.inputs.version_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "⚠️  Warning: Version tag should follow semver format (e.g., v1.0.0)"
-          fi
-          echo "Version tag: ${{ github.event.inputs.version_tag }}"
+#       - name: Validate version tag format
+#         run: |
+#           if [[ ! "${{ github.event.inputs.version_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+#             echo "⚠️  Warning: Version tag should follow semver format (e.g., v1.0.0)"
+#           fi
+#           echo "Version tag: ${{ github.event.inputs.version_tag }}"
 
-  build:
-    needs: [validate-input]
-    runs-on: ubuntu-latest
-    environment: production
+#   build:
+#     needs: [validate-input]
+#     runs-on: ubuntu-latest
+#     environment: production
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.aws_region }}
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v5
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.aws_region }}
 
-      - name: Login to Amazon ECR
-        run: |
-          aws ecr get-login-password --region ${{ env.aws_region }} | \
-          docker login --username AWS --password-stdin ${{ env.aws_account }}.dkr.ecr.${{ env.aws_region }}.amazonaws.com
+#       - name: Login to Amazon ECR
+#         run: |
+#           aws ecr get-login-password --region ${{ env.aws_region }} | \
+#           docker login --username AWS --password-stdin ${{ env.aws_account }}.dkr.ecr.${{ env.aws_region }}.amazonaws.com
 
-      - name: Build Docker image
-        run: |
-          cd application
-          docker build --platform linux/amd64 -t ecsapp .
-          docker tag ecsapp ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
-          docker tag ecsapp ${{ env.ecr_repo }}:latest
+#       - name: Build Docker image
+#         run: |
+#           cd application
+#           docker build --platform linux/amd64 -t ecsapp .
+#           docker tag ecsapp ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
+#           docker tag ecsapp ${{ env.ecr_repo }}:latest
 
-      - name: Run security scan on image
-        run: |
-          echo "🔍 Running security scan..."
-          # Add trivy or other security scanning here if needed
-          echo "✅ Security scan passed"
+#       - name: Run security scan on image
+#         run: |
+#           echo "🔍 Running security scan..."
+#           # Add trivy or other security scanning here if needed
+#           echo "✅ Security scan passed"
 
-      - name: Push Docker image to ECR
-        run: |
-          docker push ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
-          docker push ${{ env.ecr_repo }}:latest
-          echo "✅ Pushed image with tags: ${{ github.event.inputs.version_tag }}, latest"
+#       - name: Push Docker image to ECR
+#         run: |
+#           docker push ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
+#           docker push ${{ env.ecr_repo }}:latest
+#           echo "✅ Pushed image with tags: ${{ github.event.inputs.version_tag }}, latest"
 
-  deploy:
-    needs: [build]
-    runs-on: ubuntu-latest
-    environment: production
+#   deploy:
+#     needs: [build]
+#     runs-on: ubuntu-latest
+#     environment: production
 
-    steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.aws_region }}
+#     steps:
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v5
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.aws_region }}
 
-      - name: Download current ECS task definition
-        run: |
-          aws ecs describe-task-definition --task-definition ${{ env.ecs_task_def }} \
-          --query taskDefinition > task-definition.json
-          echo "✅ Downloaded task definition"
-          ls -l task-definition.json
+#       - name: Download current ECS task definition
+#         run: |
+#           aws ecs describe-task-definition --task-definition ${{ env.ecs_task_def }} \
+#           --query taskDefinition > task-definition.json
+#           echo "✅ Downloaded task definition"
+#           ls -l task-definition.json
 
-      - name: Update task definition with new image
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ env.app_container }}
-          image: ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
+#       - name: Update task definition with new image
+#         id: task-def
+#         uses: aws-actions/amazon-ecs-render-task-definition@v1
+#         with:
+#           task-definition: task-definition.json
+#           container-name: ${{ env.app_container }}
+#           image: ${{ env.ecr_repo }}:${{ github.event.inputs.version_tag }}
 
-      - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ecs_service }}
-          cluster: ${{ env.ecs_cluster }}
-          wait-for-service-stability: true
+#       - name: Deploy to Amazon ECS
+#         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+#         with:
+#           task-definition: ${{ steps.task-def.outputs.task-definition }}
+#           service: ${{ env.ecs_service }}
+#           cluster: ${{ env.ecs_cluster }}
+#           wait-for-service-stability: true
 
-      - name: Verify deployment
-        run: |
-          echo "🎉 Production deployment completed successfully!"
-          echo "Version: ${{ github.event.inputs.version_tag }}"
-          echo "Cluster: ${{ env.ecs_cluster }}"
-          echo "Service: ${{ env.ecs_service }}"
+#       - name: Verify deployment
+#         run: |
+#           echo "🎉 Production deployment completed successfully!"
+#           echo "Version: ${{ github.event.inputs.version_tag }}"
+#           echo "Cluster: ${{ env.ecs_cluster }}"
+#           echo "Service: ${{ env.ecs_service }}"
 
-      - name: Create deployment summary
-        run: |
-          echo "### 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${{ github.event.inputs.version_tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
-          echo "- **ECS Cluster:** ${{ env.ecs_cluster }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **ECS Service:** ${{ env.ecs_service }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+#       - name: Create deployment summary
+#         run: |
+#           echo "### 🚀 Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+#           echo "" >> $GITHUB_STEP_SUMMARY
+#           echo "- **Version:** ${{ github.event.inputs.version_tag }}" >> $GITHUB_STEP_SUMMARY
+#           echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+#           echo "- **ECS Cluster:** ${{ env.ecs_cluster }}" >> $GITHUB_STEP_SUMMARY
+#           echo "- **ECS Service:** ${{ env.ecs_service }}" >> $GITHUB_STEP_SUMMARY
+#           echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+#           echo "- **Timestamp:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+#           echo "" >> $GITHUB_STEP_SUMMARY
+#           echo "✅ Deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
