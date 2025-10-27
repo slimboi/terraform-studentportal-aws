@@ -2,19 +2,41 @@ name: Destroy Infrastructure - Dev
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
 
 env:
   terraform_version: 1.5.7
   infra_path: terraform
 
 jobs:
-  terraform-dev:
+  terraform-destroy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}-destroy  # Requires approval
+    
     steps:
-      - name: checkout
+      - name: Validate confirmation
+        run: |
+          if [ "${{ inputs.confirmation }}" != "DESTROY" ]; then
+            echo "Error: Confirmation text must be exactly 'DESTROY'"
+            exit 1
+          fi
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Terraform install
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.terraform_version }}
@@ -26,13 +48,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
-      - name: Terraform init
-        # run: terraform init
+      - name: Terraform Init
         run: |
           cd ${{ env.infra_path }}
-          terraform init -backend-config=vars/dev.tfbackend
+          terraform init -backend-config=vars/${{ inputs.environment }}.tfbackend
+
+      - name: Terraform Plan Destroy
+        run: |
+          cd ${{ env.infra_path }}
+          terraform plan -destroy -var-file=vars/${{ inputs.environment }}.tfvars -out=destroy.tfplan
 
       - name: Terraform Destroy
         run: |
           cd ${{ env.infra_path }}
-          terraform destroy -var-file=vars/dev.tfvars --auto-approve
+          terraform apply destroy.tfplan
+
+      - name: Notify on completion
+        if: success()
+        run: |
+          echo "::warning::Infrastructure for ${{ inputs.environment }} has been destroyed"

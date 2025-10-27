@@ -10,7 +10,7 @@ on:
 env:
   terraform_version: 1.5.7
   infra_path: terraform
-  environment: prod  # Change this or make it dynamic
+  environment: dev  # Change this or make it dynamic
 
 jobs:
   terraform-validate:
