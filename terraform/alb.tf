@@ -17,7 +17,6 @@ resource "aws_lb_target_group" "alb" {
   }
 }
 
-
 # ALB itself
 
 resource "aws_lb" "alb" {

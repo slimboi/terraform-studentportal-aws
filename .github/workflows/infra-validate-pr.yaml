@@ -3,22 +3,23 @@ name: Validate Infrastructure - PR
 on:
   pull_request:
     branches:
-        - main
+      - main
     paths:
       - 'terraform/**'
 
 env:
   terraform_version: 1.5.7
   infra_path: terraform
-jobs:
+  environment: dev  # Change this or make it dynamic
 
-  terraform-fmt:
+jobs:
+  terraform-validate:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Terraform install
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.terraform_version }}
@@ -30,14 +31,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
-      - name: fmt check
+      - name: Terraform Format Check
         run: |
           cd ${{ env.infra_path }}
-          terraform fmt -check
+          terraform fmt -check -recursive
 
-      - name: Terraform plan
-        # run: terraform plan
+      - name: Terraform Init
         run: |
           cd ${{ env.infra_path }}
-          terraform plan -var-file=vars/dev.tfvars
+          terraform init -backend-config=vars/${{ env.environment }}.tfbackend
 
+      - name: Terraform Validate
+        run: |
+          cd ${{ env.infra_path }}
+          terraform validate
+
+      - name: Terraform Plan
+        run: |
+          cd ${{ env.infra_path }}
+          terraform plan -var-file=vars/${{ env.environment }}.tfvars -no-color

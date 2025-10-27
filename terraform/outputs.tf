@@ -1,6 +1,6 @@
-output "dev_app_url" {
-  description = "Development environment URL"
-  value       = "https://dev.${var.ecs_app_values.subdomain_name}.${var.ecs_app_values.domain_name}"
+output "app_url" {
+  description = "Application URL"
+  value       = "https://${var.environment}.${var.ecs_app_values.subdomain_name}.${var.ecs_app_values.domain_name}"
 }
 
 output "alb_dns_name" {

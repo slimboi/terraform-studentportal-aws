@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      # - feature/*
     paths:
       - 'terraform/**'
   workflow_dispatch:
@@ -11,15 +12,17 @@ on:
 env:
   terraform_version: 1.5.7
   infra_path: terraform
+  environment: dev
 
 jobs:
-  terraform-dev:
+  terraform-fmt:
     runs-on: ubuntu-latest
+    # environment: dev  # Optional: Use GitHub Environments for protection rules
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Terraform install
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.terraform_version }}
@@ -31,14 +34,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
-      - name: Terraform init
-        # run: terraform init
+      - name: Terraform Init
         run: |
           cd ${{ env.infra_path }}
-          terraform init -backend-config=vars/dev.tfbackend
+          terraform init -backend-config=vars/${{ env.environment }}.tfbackend
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          cd ${{ env.infra_path }}
+          terraform plan -var-file=vars/${{ env.environment }}.tfvars -out=tfplan
+        continue-on-error: false
 
       - name: Terraform Apply
-        # run: terraform plan
+        if: github.ref == 'refs/heads/main'  # Only apply on main branch
         run: |
           cd ${{ env.infra_path }}
-          terraform apply -var-file=vars/dev.tfvars --auto-approve
+          terraform apply tfplan
