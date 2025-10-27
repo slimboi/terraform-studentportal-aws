@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'application/**'  # Only trigger on app changes
+      - 'application/**'
   workflow_dispatch:
 
 env:
@@ -19,17 +19,18 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest      
+    runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.set-tag.outputs.image_tag }}
+      short_sha: ${{ steps.set-sha.outputs.short_sha }}
+      image_tag: ${{ steps.set-sha.outputs.short_sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set image tag
-        id: set-tag
-        run: echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+      - name: Set Short SHA
+        id: set-sha
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5
@@ -43,17 +44,27 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build, tag, and push image to Amazon ECR
-        id: build-image
         run: |
           cd application
-          docker build -t ${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }} .
-          docker push ${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }}
-          echo "image=${{ env.ecr_repo }}:${{ steps.set-tag.outputs.image_tag }}" >> $GITHUB_OUTPUT
+          docker build -t ${{ env.ecr_repo }}:${{ steps.set-sha.outputs.short_sha }} .
+          docker tag ${{ env.ecr_repo }}:${{ steps.set-sha.outputs.short_sha }} ${{ env.ecr_repo }}:latest
+          docker push ${{ env.ecr_repo }}:${{ steps.set-sha.outputs.short_sha }}
+          docker push ${{ env.ecr_repo }}:latest
+          echo "✅ Pushed images with tags: ${{ steps.set-sha.outputs.short_sha }}, latest"
+
+      - name: Create build summary
+        run: |
+          echo "### 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** \`${{ steps.set-sha.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Full SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** [${{ steps.set-sha.outputs.short_sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> $GITHUB_STEP_SUMMARY
 
   deploy:
     needs: [build]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Only deploy from main branch
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Configure AWS Credentials
@@ -62,7 +73,7 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.aws_region }}
-          
+
       - name: Download task definition
         run: |
           aws ecs describe-task-definition \
@@ -75,7 +86,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.app_container }}
-          image: ${{ env.ecr_repo }}:${{ needs.build.outputs.image_tag }}
+          image: ${{ env.ecr_repo }}:${{ needs.build.outputs.short_sha }}
 
       - name: Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -84,3 +95,14 @@ jobs:
           service: ${{ env.ecs_service }}
           cluster: ${{ env.ecs_cluster }}
           wait-for-service-stability: true
+
+      - name: Create deployment summary
+        run: |
+          echo "### 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Dev" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** \`${{ needs.build.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **ECS Cluster:** ${{ env.ecs_cluster }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **ECS Service:** ${{ env.ecs_service }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** [${{ needs.build.outputs.short_sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> $GITHUB_STEP_SUMMARY
