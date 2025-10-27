@@ -10,6 +10,7 @@ on:
 env:
   terraform_version: 1.5.7
   infra_path: terraform
+  environment: prod  # Change this or make it dynamic
 
 jobs:
   terraform-validate:
@@ -38,7 +39,7 @@ jobs:
       - name: Terraform Init
         run: |
           cd ${{ env.infra_path }}
-          terraform init -backend-config=vars/dev.tfbackend
+          terraform init -backend-config=vars/${{ env.environment }}.tfbackend
 
       - name: Terraform Validate
         run: |
@@ -48,4 +49,4 @@ jobs:
       - name: Terraform Plan
         run: |
           cd ${{ env.infra_path }}
-          terraform plan -var-file=vars/dev.tfvars
+          terraform plan -var-file=vars/${{ env.environment }}.tfvars -no-color
