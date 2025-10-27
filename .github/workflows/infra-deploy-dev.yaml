@@ -15,7 +15,7 @@ env:
   environment: dev
 
 jobs:
-  terraform-dev:
+  terraform-fmt:
     runs-on: ubuntu-latest
     environment: dev  # Optional: Use GitHub Environments for protection rules
     steps:
